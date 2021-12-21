@@ -4,4 +4,8 @@ Pipeline to iFFT on GSB Voltage Beam data
 
 # Compiling iFFT.cu
 
-nvcc -o ifft iFFT.cu read_file.c -L /usr/local/cuda/lib64/ -l :libcufso
+/usr/local/cuda/bin//nvcc -o ifft iFFT.cu read_file.c -L /usr/local/cuda/lib64/ -l :libcufso
+
+# Usage
+
+./ifft <voltage beam file> <GPU ID>

@@ -8,4 +8,4 @@ Pipeline to iFFT on GSB Voltage Beam data
 
 # Usage
 
-./ifft <voltage beam file> <GPU ID>
+./ifft voltage-beam-file-name GPU ID

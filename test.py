@@ -6,11 +6,12 @@ import time
 import functools
 import cupy as cp
 from threading import Thread
-from multiprocessing import Process
+from multiprocessing import Process, Queue, Manager
 import concurrent.futures
 from numba import njit, prange
 
-NX = 8
+NX = 2048
+queue = Queue()
 # a = array("h")
 
 def timefunc(func):
@@ -37,13 +38,50 @@ def create_array(data):
         print(P.device)
         return P
 
-def run_cuFFT(f,I,N):
+def save_file(file, return_dict):
+        ifft_dict = {}
+
+        for i in sorted(return_dict):
+                ifft_dict[i] = return_dict[i]
+
+        print("iift_dict keys")
+        print(ifft_dict.keys())
+        # file = open(filename, 'wb')
+        for key in ifft_dict.keys():
+                print("Writing for Block ", key)
+                ifft_blocks = ifft_dict[key]
+                for i in range(len(ifft_blocks)//2048):
+                        ifft_block = ifft_blocks[i*NX: i*NX + NX]
+                        # ifft_r = ifft_block[::2]
+                        # print(ifft_r[:5])
+                        # ifft_i = ifft_block[1::2]
+                        ifft_r = []
+                        ifft_i = []
+                        for i in range(np.shape(ifft_block)[0]):
+                                ifft_r.append(ifft_block[i].real)
+                                ifft_i.append(ifft_block[i].imag)
+
+                        ifft_r = np.clip(ifft_r,-128,127)
+                        ifft_i = np.clip(ifft_i,-128,127)
+                        final_ifft_r = []
+                        final_ifft_i = []
+                        for i in range(np.shape(ifft_r)[0]):
+                                final_ifft_r.append(int(ifft_r[i]))
+                                final_ifft_i.append(int(ifft_i[i]))
+                        for i in range(len(final_ifft_r)):
+                                file.write(final_ifft_r[i].to_bytes(1,byteorder='big',signed=True))
+                                file.write(final_ifft_i[i].to_bytes(1,byteorder='big',signed=True))
+        file.close()
+
+        
+
+def run_cuFFT(f,I,N,return_dict):
         print("In CUFFT")
         print(I,N)
         cp.cuda.Device(1).use()
         # f = open(fileName,'rb')
         # h = open('thread1.txt','w')
-        # iffts = []
+        iffts = []
         # cp.fft.config.use_multi_gpus = True
         # cp.fft.config.set_cufft_gpus([2,3]) #use GPUs 0 & 1
         # with open(fileName,'rb') as f:
@@ -64,8 +102,8 @@ def run_cuFFT(f,I,N):
                 # ifft3 = cp.fft.ifft(P[NX/2:3*NX/4])
                 # ifft4 = cp.fft.ifft(P[3*NX/4:]) 
                 # ifft = cp.concatenate([ifft1,ifft2,ifft3,ifft4])
-                        # ifft = cp.asnumpy(ifft)
-                        # iffts.append(ifft)
+                ifft = cp.asnumpy(ifft)
+                iffts.append(ifft)
                         # h.write(str(ifft))
                         # ifft = iFFT(P)
                         # ifft = np.array(ifft)/NX
@@ -73,11 +111,14 @@ def run_cuFFT(f,I,N):
                         # print(np.shape(ifft)[0])
                 print('\n')
         # h.close()
-        # iffts = np.array(iffts)
-        # iffts = np.ravel(iffts)
+        iffts = np.array(iffts)
+        iffts = np.ravel(iffts)
         # plt.plot(iffts)
         # plt.show()
         # plt.savefig("Sample_Timeseries.png")
+        # queue.put({I:iffts})
+        return_dict[I] = iffts
+
 
 
 #Custom iFFT routine
@@ -98,14 +139,17 @@ def iFFT(P):
 
 @timefunc
 def main():
-        n = 1
-        n_processes = 1
-        fileName = 'B0740-28_B4_25MHz_P1_small.rawvlt'
+        n = 3051
+        n_processes = 40
+        # fileName = 'B0740-28_B4_25MHz_P1_small.rawvlt'
+        fileName = 'pulsar_2s.vlt'
         f = open(fileName,'rb')
-
+        # queue = Queue()
+        manager = Manager()
+        return_dict = manager.dict()
         t = [0]*n_processes
         for i in range(n_processes):
-                t[i] = Process(target = run_cuFFT, args = (f,i*n,n))
+                t[i] = Process(target = run_cuFFT, args = (f,i*n,n, return_dict))
 
         for i in range(n_processes):
                 t[i].start()
@@ -115,6 +159,17 @@ def main():
                 print("T"+str(i+1)+" is done")
         
         print("Done!")
+        print("Keys")
+        print(return_dict.keys())
+        print("Values")
+        print(np.shape(return_dict.values()[0]))
+
+        print("Writing to File")
+        
+        h = open("pulsar_2s_timeseries.raw",'wb')
+        save_file(h,return_dict)
+        h.close()
+        f.close()
         
 
 

@@ -11,8 +11,6 @@ import concurrent.futures
 from numba import njit, prange
 
 NX = 2048
-queue = Queue()
-# a = array("h")
 
 def timefunc(func):
     """timefunc's doc"""
@@ -28,33 +26,40 @@ def timefunc(func):
 
     return time_closure
 
+def complete_spectrum(ifft_block):
+        """
+        Using the 2048 complex points made, the spectrum is completed by flipping the 
+        positive frequency coefficients and taking their complex conjugate
+
+        """
+        ifft_conjugate = ifft_block[:0:-1].conjugate()
+        ifft_array = np.concatenate((ifft_conjugate,ifft_block))
+        return ifft_array
+
+
 def create_array(data):
+        """
+        Creates a complex array of 2048 length after reading 4096 points from the 
+        raw voltage beam file
+
+        """
         num_array = [np.int8(numeric_string) for numeric_string in data]
-        print(num_array[0])
-        #print(num_array[:5])
         P = [num_array[2*i] + num_array[2*i+1]*1j for i in range(NX)]
         P = cp.array(P, dtype=complex) 
-        # P = np.array(P, dtype=complex)
         print(P.device)
         return P
 
-def save_file(file, return_dict):
-        ifft_dict = {}
+def save_file(file, ifft_dict):
+        """
+        Function to save iFFT data to a binary file: Clip ifft array between -128, 127 --> convert to int --> 
+        convert to bytes --> store in binary file
 
-        for i in sorted(return_dict):
-                ifft_dict[i] = return_dict[i]
-
-        print("iift_dict keys")
-        print(ifft_dict.keys())
-        # file = open(filename, 'wb')
+        """
         for key in ifft_dict.keys():
                 print("Writing for Block ", key)
                 ifft_blocks = ifft_dict[key]
-                for i in range(len(ifft_blocks)//2048):
+                for i in range(len(ifft_blocks)//NX):
                         ifft_block = ifft_blocks[i*NX: i*NX + NX]
-                        # ifft_r = ifft_block[::2]
-                        # print(ifft_r[:5])
-                        # ifft_i = ifft_block[1::2]
                         ifft_r = []
                         ifft_i = []
                         for i in range(np.shape(ifft_block)[0]):
@@ -63,60 +68,45 @@ def save_file(file, return_dict):
 
                         ifft_r = np.clip(ifft_r,-128,127)
                         ifft_i = np.clip(ifft_i,-128,127)
-                        final_ifft_r = []
-                        final_ifft_i = []
+                        final_fft = []
                         for i in range(np.shape(ifft_r)[0]):
-                                final_ifft_r.append(int(ifft_r[i]))
-                                final_ifft_i.append(int(ifft_i[i]))
-                        for i in range(len(final_ifft_r)):
-                                file.write(final_ifft_r[i].to_bytes(1,byteorder='big',signed=True))
-                                file.write(final_ifft_i[i].to_bytes(1,byteorder='big',signed=True))
+                                final_fft.append(ifft_r[i])
+                                final_fft.append(ifft_i[i])
+                        final_fft = np.array(final_fft,dtype=int)
+                        binary_ifft_array = np.array(final_fft, dtype = np.int8).tobytes()
+                        file.write(binary_ifft_array)
         file.close()
 
         
 
 def run_cuFFT(f,I,N,return_dict):
+        """
+        Runs iFFT on multiple FFT blocks of raw data using cuFFT
+        Stores output in a shared dictionary between multiple processes
+
+        """
         print("In CUFFT")
         print(I,N)
         cp.cuda.Device(1).use()
-        # f = open(fileName,'rb')
-        # h = open('thread1.txt','w')
+
         iffts = []
-        # cp.fft.config.use_multi_gpus = True
-        # cp.fft.config.set_cufft_gpus([2,3]) #use GPUs 0 & 1
-        # with open(fileName,'rb') as f:
                 
         for i in range(I,I+N):
-                f.seek(i*NX)
+                f.seek(i*2*NX)
                 DATA = f.read(2*NX)
                 print("cuFFT Data Block "+ str(i)+ "\n")
                 print(I,N)
-                        # print(DATA[:5])
                 print("\n")
                 P = create_array(DATA)
-                # ifft = iFFT(P)
-                # ifft = np.array(ifft)
-                ifft = cp.fft.ifft(P)
-                # ifft1 = cp.fft.ifft(P[:NX/4])
-                # ifft2 = cp.fft.ifft(P[NX/4:NX/2])
-                # ifft3 = cp.fft.ifft(P[NX/2:3*NX/4])
-                # ifft4 = cp.fft.ifft(P[3*NX/4:]) 
-                # ifft = cp.concatenate([ifft1,ifft2,ifft3,ifft4])
+                ifft_array = complete_spectrum(P)
+                ifft = cp.fft.ifft(ifft_array)
                 ifft = cp.asnumpy(ifft)
                 iffts.append(ifft)
-                        # h.write(str(ifft))
-                        # ifft = iFFT(P)
-                        # ifft = np.array(ifft)/NX
                 print(ifft[:5])
-                        # print(np.shape(ifft)[0])
                 print('\n')
-        # h.close()
+
         iffts = np.array(iffts)
         iffts = np.ravel(iffts)
-        # plt.plot(iffts)
-        # plt.show()
-        # plt.savefig("Sample_Timeseries.png")
-        # queue.put({I:iffts})
         return_dict[I] = iffts
 
 
@@ -139,12 +129,11 @@ def iFFT(P):
 
 @timefunc
 def main():
-        n = 3051
-        n_processes = 40
-        # fileName = 'B0740-28_B4_25MHz_P1_small.rawvlt'
-        fileName = 'pulsar_2s.vlt'
-        f = open(fileName,'rb')
-        # queue = Queue()
+        n = 1252
+        n_processes = 39
+        IN_FILE = "pulsar_sample.vlt"
+        OUT_FILE = "pulsar_sample.raw"
+        f = open(IN_FILE,'rb')
         manager = Manager()
         return_dict = manager.dict()
         t = [0]*n_processes
@@ -159,16 +148,22 @@ def main():
                 print("T"+str(i+1)+" is done")
         
         print("Done!")
-        print("Keys")
-        print(return_dict.keys())
-        print("Values")
-        print(np.shape(return_dict.values()[0]))
+
+        print("Shape of Values")
+        print(np.shape(return_dict.values()[0])) #Should be n*shape_of_one_ifft_block (in this case: 4095)
+        ifft_dict = {}
+
+        for i in sorted(return_dict):
+                ifft_dict[i] = return_dict[i]
+
+        print("iift_dict keys")
+        print(ifft_dict.keys())
 
         print("Writing to File")
         
-        h = open("pulsar_2s_timeseries.raw",'wb')
-        save_file(h,return_dict)
-        h.close()
+        h = open(OUT_FILE,'wb')
+
+        save_file(h,ifft_dict)
         f.close()
         
 

@@ -13,7 +13,7 @@ nvcc -o ifft_stream iFFT_stream.cu read_file.c -L /usr/local/cuda/lib64/ -l :lib
 ## Cuda 
 ./ifft voltage-beam-file-name GPU ID
 
-./ifft_stream voltage-beam-file-name GPU ID
+./ifft_stream voltage-beam-file-name output-file-name GPU ID
 
 ## Python
 ### Requirements

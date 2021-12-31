@@ -38,7 +38,7 @@ void oops(int linenum, const char * msg) {
 	exit(86);
 }
 
-void run_cuFFT(char *arr, int NUM_IFFTS, int NUM_STREAMS, int gpu_id){
+void run_cuFFT(char *arr, int NUM_IFFTS, int NUM_STREAMS, int gpu_id, fstream& out_file){
 
     char * buffer = arr;
     //Allocate input data
@@ -47,9 +47,9 @@ void run_cuFFT(char *arr, int NUM_IFFTS, int NUM_STREAMS, int gpu_id){
     h_in = new cufftComplex **[NUM_STREAMS];
     for (int ii = 0; ii < NUM_STREAMS; ii++) {
         h_in[ii] = new cufftComplex *[NUM_IFFTS];
-        for (int jj = 0; jj < NUM_IFFTS; ++jj) {
+        for (int jj = 0; jj < NUM_IFFTS; jj++) {
             h_in[ii][jj] = new cufftComplex[NX];
-            for (int kk = 0; kk < NX; ++kk) {
+            for (int kk = 0; kk < NX; kk++) {
                 h_in[ii][jj][kk].x = (float)*buffer++;
                 h_in[ii][jj][kk].y = (float)*buffer++;
             }
@@ -63,9 +63,9 @@ void run_cuFFT(char *arr, int NUM_IFFTS, int NUM_STREAMS, int gpu_id){
     h_out = new cufftComplex **[NUM_STREAMS];
     for (int ii = 0; ii < NUM_STREAMS; ii++) {
         h_out[ii] = new cufftComplex *[NUM_IFFTS];
-        for (int jj = 0; jj < NUM_IFFTS; ++jj) {
+        for (int jj = 0; jj < NUM_IFFTS; jj++) {
             h_out[ii][jj] = new cufftComplex[NX];
-            for (int kk = 0; kk < NX; ++kk) {
+            for (int kk = 0; kk < NX; kk++) {
                 h_out[ii][jj][kk].x = 0.f;
                 h_out[ii][jj][kk].y = 0.f;
             }
@@ -123,7 +123,7 @@ void run_cuFFT(char *arr, int NUM_IFFTS, int NUM_STREAMS, int gpu_id){
     printf("Created cuFFT plans and setting them in Streams\n");
 
     // Fill streams with async memcopies and FFTs.
-    printf("Filling Streams\n");
+    printf("Filling Streams and RUNNING CUFFT_INVERSE\n");
     for (int ii = 0; ii < NUM_STREAMS; ii++) {
         for (int jj = 0; jj < NUM_IFFTS; jj++) {
 
@@ -132,7 +132,7 @@ void run_cuFFT(char *arr, int NUM_IFFTS, int NUM_STREAMS, int gpu_id){
             cudaMemcpyAsync(h_out[ii][jj], d_out[ii][jj], NX*sizeof(cufftComplex), cudaMemcpyDeviceToHost, streams[ii]);
         }
     }
-    printf("Filled Streams\n");
+    printf("Filled Streams AND RAN CUFFT_INVERSE \n");
 
     // Wait for calculations to complete.
     printf("Synchronising Streams\n");
@@ -144,8 +144,8 @@ void run_cuFFT(char *arr, int NUM_IFFTS, int NUM_STREAMS, int gpu_id){
     //Normalising Output (to be added)
     printf("Normalising Output\n");
     for (int ii = 0; ii < NUM_STREAMS; ii++) {
-        for (int jj = 0; jj < NUM_IFFTS; ++jj) {
-            for (int kk = 0; kk < 3; ++kk) {
+        for (int jj = 0; jj < NUM_IFFTS; jj++) {
+            for (int kk = 0; kk < NX; kk++) {
                 h_out[ii][jj][kk].x = h_out[ii][jj][kk].x/(float)NX;
                 h_out[ii][jj][kk].y = h_out[ii][jj][kk].y/(float)NX;
             }
@@ -159,10 +159,26 @@ void run_cuFFT(char *arr, int NUM_IFFTS, int NUM_STREAMS, int gpu_id){
     //     for (int jj = 0; jj < NUM_IFFTS; ++jj) {
     //         printf("Printing for NUM_IFFT =  %d\n", jj);
     //         for (int kk = 0; kk < 3; ++kk) {
-    //             printf("OG : %f %f  Inverse %f %f \n",h_in[ii][jj][kk].x, h_in[ii][jj][kk].y,h_out[ii][jj][kk].x,h_out[ii][jj][kk].y);
+    //             // printf("OG : %f %f  Inverse %f %f \n",h_in[ii][jj][kk].x, h_in[ii][jj][kk].y,h_out[ii][jj][kk].x,h_out[ii][jj][kk].y);
+    //             printf("%s %s \n", (char*) &h_out[ii][jj][kk].x, (char*) &h_out[ii][jj][kk].y);
     //         }
     //     }
     // }
+
+    //Writing to File
+    printf("Seeking end of file\n");
+    out_file.seekg(0, ios_base::end); //Seek end of file to start writing
+    printf("Went to end of file\n");
+    printf("********Writing to file********\n");
+    for (int ii = 0; ii < NUM_STREAMS; ii++) {
+        for (int jj = 0; jj < NUM_IFFTS; jj++) {
+            for (int kk = 0; kk < NX; kk++) {
+                out_file.write((char*)&h_out[ii][jj][kk].x, sizeof(char));
+                out_file.write((char*)&h_out[ii][jj][kk].y, sizeof(char)); 
+            }
+        }
+    }
+    printf("********Done Writing to file!********\n");
 
     // Free memory and streams.
     printf("Freeing memory and streams\n");
@@ -199,13 +215,13 @@ int main(int argc, const char *argv[])
     const int NUM_IFFTS = 10;
     const int NUM_STREAMS = 339;
 
-	if(argc != 3) {
+	if(argc != 4) {
 		printf("Invalid number of parameters! \n");
-		printf("Usage: ./%s  <vlt file1> <GPU ID>\n",argv[0]);
+		printf("Usage: ./%s  <input file> <output file> <GPU ID>\n",argv[0]);
 		exit(-1);
 	}
 
-    int gpu_id = atoi(argv[2]);
+    int gpu_id = atoi(argv[3]);
     if(cudaSetDevice(gpu_id) != cudaSuccess)
         oops(__LINE__, "cudaSetDevice FAILED\n");
 
@@ -216,6 +232,17 @@ int main(int argc, const char *argv[])
  
     
     infile = read_file(argv[1]);
+    
+    fstream out_file;
+    out_file.open(argv[2], ios::binary | ios::out);
+    if(!out_file)
+   {
+       cout<<"Error in creating file!!!";
+       return 0;
+   }
+  
+   cout<<"File created successfully.\n";
+
     buffer = infile;
     buffer2 = buffer + 30510*2048; 
     buffer3 = buffer2 + 30510*2048;
@@ -223,41 +250,15 @@ int main(int argc, const char *argv[])
 
     start = time(NULL);
 
-    // thread t1(run_cuFFT, buffer, NUM_IFFTS, NUM_STREAMS, 0);
-    // thread t2(run_cuFFT, buffer2, NUM_IFFTS, NUM_STREAMS, 1);
-    // thread t3(run_cuFFT, buffer3, NUM_IFFTS, NUM_STREAMS, 2);
-    // // run_cuFFT(buffer, NUM_IFFTS, NUM_STREAMS, gpu_id);
-
-    // if (t1.joinable())
-    // {
-    //     t1.join();
-    //     // cout << "Thread with id " << id1 << " is terminated" << endl;
-    // }
-    // if (t2.joinable())
-    // {
-    //     t2.join();
-    //     // cout << "Thread with id " << id2 << " is terminated" << endl;
-    // }
-    // if (t3.joinable())
-    // {
-    //     t3.join();
-    //     // cout << "Thread with id " << id3 << " is terminated" << endl;
-    // }
-
-    // run_cuFFT(buffer, NUM_IFFTS, NUM_STREAMS, gpu_id);
-    // printf("Ran for buffer\n");
-    // run_cuFFT(buffer2, NUM_IFFTS, NUM_STREAMS, gpu_id);
-    // printf("Ran for buffer2\n");
-    // run_cuFFT(buffer3, NUM_IFFTS, NUM_STREAMS, gpu_id);
-    // printf("Ran for buffer3\n");
-    // run_cuFFT(buffer4, NUM_IFFTS, NUM_STREAMS, gpu_id);
-    // printf("Ran for buffer4\n");
+    
 
     for(int i = 0; i < 36; i++){
-       run_cuFFT(buffer, NUM_IFFTS, NUM_STREAMS, gpu_id);
+       run_cuFFT(buffer, NUM_IFFTS, NUM_STREAMS, gpu_id, out_file);
        buffer += NUM_IFFTS*NUM_STREAMS*NX;
        printf("Ran for buffer%d\n", i+1); 
     }
+
+    out_file.close();
 
     stop = time(NULL);
     printf("The number of seconds for to run was %ld\n", stop - start);

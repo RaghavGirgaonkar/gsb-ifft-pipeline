@@ -8,6 +8,10 @@ Pipeline to iFFT on GSB Voltage Beam data
 
 nvcc -o ifft_stream iFFT_stream.cu read_file.c -L /usr/local/cuda/lib64/ -l :libcufft.so -std=c++11
 
+# Compiling iFFT_stream.cu on BLPC1
+
+make
+
 # Usage
 
 ## Cuda 

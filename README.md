@@ -8,9 +8,10 @@ Pipeline to iFFT on GSB Voltage Beam data
 
 nvcc -o ifft_stream iFFT_stream.cu read_file.c -L /usr/local/cuda/lib64/ -l :libcufft.so -std=c++11
 
-# Compiling iFFT_stream.cu on BLPC1
+# Compiling iFFT_stream.cu and iFFT_planmany.cu on BLPC1
 
-make
+make stream (for iFFT_stream.cu)
+make or make many (for iFFT_planmany.cu)
 
 # Usage
 
@@ -18,6 +19,8 @@ make
 ./ifft voltage-beam-file-name GPU ID
 
 ./ifft_stream voltage-beam-file-name output-file-name GPU ID
+
+./ifft_planmany voltage-beam-file-name output-file-name GPU ID
 
 ## Python
 ### Requirements

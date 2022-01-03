@@ -11,6 +11,7 @@ nvcc -o ifft_stream iFFT_stream.cu read_file.c -L /usr/local/cuda/lib64/ -l :lib
 # Compiling iFFT_stream.cu and iFFT_planmany.cu on BLPC1
 
 make stream (for iFFT_stream.cu)
+
 make or make many (for iFFT_planmany.cu)
 
 # Usage

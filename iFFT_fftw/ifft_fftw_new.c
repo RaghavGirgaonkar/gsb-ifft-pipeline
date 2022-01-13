@@ -106,11 +106,15 @@ int main(int argc, char* argv[]){
     in_file = fopen(argv[1], "r");
     if(!in_file){
         fprintf(stderr,"Error opening input file\n");
+        fftw_free(in);
+        fftw_free(out);
         exit(1);
     }
     out_file = fopen(argv[2], "w");
     if(!out_file){
         fprintf(stderr,"Error opening output file\n");
+        fftw_free(in);
+        fftw_free(out);
         exit(1);
     }
 
@@ -123,7 +127,7 @@ int main(int argc, char* argv[]){
     printf("Bandwidth = %d\n", bandwidth);
 
     //Calculate Beam Sampling rate
-    long double sampling_rate = (long double)(1/((long double) bandwidth));
+    long double sampling_rate = (long double)(1/((long double) 2*bandwidth));
     sampling_rate *= (long double) 0.000001;
     // printf("Sampling rate is = %Lf\n", (long double) sampling_rate);
     beam_sampling_rate = (long double) sampling_rate*4096;

@@ -165,8 +165,8 @@ int main(int argc, char* argv[]){
     }
 
     printf("Done!\n");
-    free(in);
-    free(out);
+    fftw_free(in);
+    fftw_free(out);
     free(in_stream);
     free(out_stream);
     //Writing to file

@@ -70,7 +70,7 @@ int main(int argc, char* argv[]){
     time_t start, stop;
 
     if(argc < 4)
-    { fprintf(stderr, "USAGE: %s Input_File Output_File Num_Blocks\n", argv[0]);
+    { fprintf(stderr, "USAGE: %s <Input_File> <Output_File> <Num_Seconds>\n", argv[0]);
       return(-1);
     }
 
@@ -79,6 +79,9 @@ int main(int argc, char* argv[]){
     FILE *in_file, *out_file;
     uint8_t *in_stream, *out_stream, *framebuf;
     long int read_file;
+    int num_blocks;
+    int num_seconds;
+    long double beam_sampling_rate = 0.00008192;
 
     //Pointers for FFTW in and out
     fftw_complex *in;
@@ -101,7 +104,16 @@ int main(int argc, char* argv[]){
         exit(1);
     }
 
-    int num_blocks = atoi(argv[3]);
+    //Get number of seconds to process
+    num_seconds = atoi(argv[3]);
+    printf("Number of Seconds to process = %d\n", num_seconds);
+
+    //Calculate Number of blocks from Number of Seconds
+    num_blocks = (int)(num_seconds/beam_sampling_rate);
+    printf("Number of Blocks to process = %d\n", num_blocks);
+
+    printf("Size of output file will be %ld bytes\n", (long int)(2*num_blocks*4096));
+
 
     //Make FFTW C2R plan
     p = fftw_plan_dft_c2r_1d(NX, in, out, FFTW_MEASURE);
@@ -134,5 +146,7 @@ int main(int argc, char* argv[]){
     printf("*****Done Writing to File*****\n");
     stop = time(NULL);
     printf("The number of seconds for to run was %ld\n", stop - start);
+
+    return 0;
 
 }

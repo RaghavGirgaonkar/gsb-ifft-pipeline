@@ -165,6 +165,8 @@ int main(int argc, char* argv[]){
     }
 
     printf("Done!\n");
+    free(in);
+    free(out);
     free(in_stream);
     free(out_stream);
     //Writing to file

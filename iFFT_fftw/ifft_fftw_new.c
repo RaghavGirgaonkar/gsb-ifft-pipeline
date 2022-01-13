@@ -137,7 +137,7 @@ int main(int argc, char* argv[]){
     num_blocks = (int)(num_seconds/beam_sampling_rate);
     printf("Number of Blocks to process = %d\n", num_blocks);
 
-    printf("Size of output file will be %ld bytes or %d Megabytes\n", (long int)(2*num_blocks*4096), (int) ((2*num_blocks*4096)/(1000000)));
+    printf("Size of output file will be %llu bytes or %d Megabytes\n", (unsigned long int)(2*num_blocks*4096), (int) ((2*num_blocks*4096)/(1000000)));
 
 
     //Make FFTW C2R plan

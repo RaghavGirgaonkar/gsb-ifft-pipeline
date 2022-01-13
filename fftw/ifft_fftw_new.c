@@ -69,8 +69,8 @@ void new_fillbuf(double *inbuf, int8_t *buf_to_fill, int NX){
    int i;
   int8_t imag = 0;
   for (i=0; i<NX; i++){
-        *(buf_to_fill+2*i) = (int8_t)inbuf[i];
-        *(buf_to_fill+2*i+1) = imag;
+        *(buf_to_fill+i) = (int8_t)inbuf[i];
+        // *(buf_to_fill+2*i+1) = imag;
   } 
 }
 
@@ -144,7 +144,7 @@ int main(int argc, char* argv[]){
     p = fftw_plan_dft_c2r_1d(NX, in, out, FFTW_MEASURE);
 
     in_stream = (int8_t*)calloc(2*nchan, sizeof(int8_t));
-    out_stream = (int8_t*)calloc(2*2*nchan, sizeof(int8_t));
+    out_stream = (int8_t*)calloc(2*nchan, sizeof(int8_t));
 
     long int lastptr, ptrnow;
 
@@ -162,7 +162,7 @@ int main(int argc, char* argv[]){
         // ptrnow = fillbuf(out, out_stream, NX, lastptr);
         new_fillbuf(out, out_stream, NX);
         // printf("*****Writing to File for block %d*****\n",i);
-        fwrite(out_stream, sizeof(int8_t), 2*2*nchan, out_file);
+        fwrite(out_stream, sizeof(int8_t), 2*nchan, out_file);
 
         i++;
 

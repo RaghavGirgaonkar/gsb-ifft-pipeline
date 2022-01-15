@@ -73,6 +73,18 @@ void new_fillbuf(double *inbuf, int8_t *buf_to_fill, int NX){
   } 
 }
 
+void combine_2pols(int8_t *pol1_buf, int8_t *pol2_buf, int8_t *combined_buff,int NX){
+  int i;
+  for (i=0; i<NX; i++){
+        *(combined_buff + 4*i) = (int8_t)pol1_buf[2*i];
+        *(combined_buff + 4*i+1) = (int8_t)pol1_buf[2*i+1];
+        *(combined_buff + 4*i+2) = (int8_t)pol2_buf[2*i];
+        *(combined_buff + 4*i+3) = (int8_t)pol2_buf[2*i+1];
+        
+  } 
+
+}
+
 int main(int argc, char* argv[]){
 
     time_t start, stop;
@@ -85,7 +97,7 @@ int main(int argc, char* argv[]){
     int NX = 2*NCHAN;
     int nchan = NCHAN;
     FILE *in_file_pol1, *in_file_pol2, *out_file;
-    uint8_t *in_stream_pol1, *out_stream_pol1, *in_stream_pol2, *out_stream_pol2;
+    int8_t *in_stream_pol1, *out_stream_pol1, *in_stream_pol2, *out_stream_pol2, *final_output;
     long int read_file;
     long int num_blocks;
     long int num_seconds;
@@ -154,6 +166,7 @@ int main(int argc, char* argv[]){
     out_stream_pol1 = (int8_t*)calloc(2*2*nchan, sizeof(int8_t));
     in_stream_pol2 = (int8_t*)calloc(2*nchan, sizeof(int8_t));
     out_stream_pol2 = (int8_t*)calloc(2*2*nchan, sizeof(int8_t));
+    final_output = (int8_t*)calloc(2*2*2*nchan, sizeof(int8_t));
 
     long int lastptr, ptrnow;
 
@@ -174,11 +187,13 @@ int main(int argc, char* argv[]){
         read_file = fread(in_stream_pol2, sizeof(int8_t), 2*nchan, in_file_pol2);
         run_fftw(&p, in_stream_pol2, in, out, nchan);
         new_fillbuf(out, out_stream_pol2, NX);
+
+        //Combining both pols buffers
+        combine_2pols(out_stream_pol1, out_stream_pol2, final_output, NX);
     
 
         //Writing Out to file
-        fwrite(out_stream_pol1, sizeof(int8_t), 2*2*nchan, out_file);
-        fwrite(out_stream_pol2, sizeof(int8_t), 2*2*nchan, out_file);
+        fwrite(final_output, sizeof(int8_t), 2*2*2*nchan, out_file);
 
         // progressbar(i, num_blocks);
 
@@ -195,6 +210,7 @@ int main(int argc, char* argv[]){
     free(out_stream_pol1);
     free(in_stream_pol2);
     free(out_stream_pol2);
+    free(final_output);
 
     stop = time(NULL);
     printf("The number of seconds for to run was %ld\n", stop - start);

@@ -1,33 +1,11 @@
 # gsb-ifft-pipeline
 Pipeline to iFFT on GSB Voltage Beam data
 
+# De-dispresed plot of B0740-28 using the PASV data to make GUPPI RAW files
 
-# Compiling iFFT.cu on BLPC1
+This is a de-dispersed plot of a 5s grab of the B0740-28 Phased Array Spectral Voltage Data (without the iFFT component)
 
-/usr/local/cuda/bin//nvcc -o ifft iFFT.cu read_file.c -L /usr/local/cuda/lib64/ -l :libcufso
-
-nvcc -o ifft_stream iFFT_stream.cu read_file.c -L /usr/local/cuda/lib64/ -l :libcufft.so -std=c++11
-
-# Compiling iFFT_stream.cu and iFFT_planmany.cu on BLPC1
-
-make stream (for iFFT_stream.cu)
-
-make or make many (for iFFT_planmany.cu)
-
-# Usage
-
-## Cuda 
-./ifft voltage-beam-file-name GPU ID
-
-./ifft_stream voltage-beam-file-name output-file-name GPU ID
-
-./ifft_planmany voltage-beam-file-name output-file-name GPU ID
-
-## Python
-### Requirements
-Python 3.8+
-Cupy
-Numpy
+![De-Dispersed Plot](https://github.com/RaghavGirgaonkar/gsb-ifft-pipeline/blob/main/images/pgplot1.png?raw=true)
 
 # Simulated Pulsar Timeseries
 
@@ -40,3 +18,5 @@ A one second grab of simulated pulsar timeseries with a sampling rate of 20 nano
 A one second grab of regenarated pulsar timeseries using ifft.py
 
 ![Regenerated Timeseries](https://github.com/RaghavGirgaonkar/gsb-ifft-pipeline/blob/main/images/regenerated_timeseries.png?raw=true)
+
+

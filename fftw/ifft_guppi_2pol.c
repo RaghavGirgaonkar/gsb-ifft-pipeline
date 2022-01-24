@@ -91,8 +91,8 @@ int main(int argc, char* argv[]){
 
     time_t start, stop;
 
-    if(argc < 5)
-    { fprintf(stderr, "USAGE: %s <Input File Pol1> <Output File> <Bandwidth of Observation in MHz> <Num Seconds>\n", argv[0]);
+    if(argc < 6)
+    { fprintf(stderr, "USAGE: %s <Input File Pol1> <Input File Pol2> <Output File> <Bandwidth of Observation in MHz> <Num Seconds>\n", argv[0]);
       return(-1);
     }
 
@@ -124,14 +124,14 @@ int main(int argc, char* argv[]){
         fftw_free(out);
         exit(1);
     }
-    // in_file_pol2 = fopen(argv[2], "r");
-    // if(!in_file_pol2){
-    //     fprintf(stderr,"Error opening Pol2 Input File\n");
-    //     fftw_free(in);
-    //     fftw_free(out);
-    //     exit(1);
-    // }
-    out_file = fopen(argv[2], "w");
+    in_file_pol2 = fopen(argv[2], "r");
+    if(!in_file_pol2){
+        fprintf(stderr,"Error opening Pol2 Input File\n");
+        fftw_free(in);
+        fftw_free(out);
+        exit(1);
+    }
+    out_file = fopen(argv[3], "w");
     if(!out_file){
         fprintf(stderr,"Error opening output file\n");
         fftw_free(in);
@@ -161,12 +161,12 @@ int main(int argc, char* argv[]){
     int g = fread(guppi_header_data, sizeof(char), header_size, guppi_header);
 
     //Get number of seconds to process
-    num_seconds = (long int)atoi(argv[4]);
+    num_seconds = (long int)atoi(argv[5]);
     printf("Number of Seconds to process = %ld\n", num_seconds);
     // printf("Number of Seconds to process = %ld\n", num_seconds);
 
     //Get Bandwidth in MHz
-    bandwidth = atoi(argv[3]);
+    bandwidth = atoi(argv[4]);
     printf("Bandwidth = %d\n", bandwidth);
 
     //Calculate Beam Sampling rate
@@ -180,7 +180,7 @@ int main(int argc, char* argv[]){
     num_blocks = (long int)(num_seconds/beam_sampling_rate);
     printf("Number of Blocks to process = %ld\n", num_blocks);
 
-    printf("Size of output file will be %ld bytes or %ld Megabytes\n", (long int)(num_blocks*(2*4096 + header_size)), (long int) ((num_blocks*(2*4096 + header_size))/(1000000)));
+    printf("Size of output file will be %ld bytes or %ld Megabytes\n", (long int)(num_blocks*(2*2*4096 + header_size)), (long int) ((num_blocks*(2*2*4096 + header_size))/(1000000)));
 
 
     //Make FFTW C2R plan
@@ -189,9 +189,9 @@ int main(int argc, char* argv[]){
     //Allocating Memory for input and output buffers
     in_stream_pol1 = (int8_t*)calloc(2*nchan, sizeof(int8_t));
     out_stream_pol1 = (int8_t*)calloc(2*2*nchan, sizeof(int8_t));
-    // in_stream_pol2 = (int8_t*)calloc(2*nchan, sizeof(int8_t));
-    // out_stream_pol2 = (int8_t*)calloc(2*2*nchan, sizeof(int8_t));
-    // final_output = (int8_t*)calloc(2*2*nchan, sizeof(int8_t));
+    in_stream_pol2 = (int8_t*)calloc(2*nchan, sizeof(int8_t));
+    out_stream_pol2 = (int8_t*)calloc(2*2*nchan, sizeof(int8_t));
+    final_output = (int8_t*)calloc(2*2*2*nchan, sizeof(int8_t));
 
     int i = 0;
     start = time(NULL);
@@ -205,19 +205,19 @@ int main(int argc, char* argv[]){
         new_fillbuf(out, out_stream_pol1, NX);
 
         //Pol2
-        // read_file = fread(in_stream_pol2, sizeof(int8_t), 2*nchan, in_file_pol2);
-        // run_fftw(&p, in_stream_pol2, in, out, nchan);
-        // new_fillbuf(out, out_stream_pol2, NX);
+        read_file = fread(in_stream_pol2, sizeof(int8_t), 2*nchan, in_file_pol2);
+        run_fftw(&p, in_stream_pol2, in, out, nchan);
+        new_fillbuf(out, out_stream_pol2, NX);
 
         //Combining both pols buffers
-        // combine_2pols(out_stream_pol1, out_stream_pol2, final_output, NX);
+        combine_2pols(out_stream_pol1, out_stream_pol2, final_output, NX);
     
 
         //Writing Out to file
         //First write GUPPI Header
         fwrite(guppi_header_data, sizeof(char), header_size, out_file);
         //Then write block
-        fwrite(out_stream_pol1, sizeof(int8_t), 2*2*nchan, out_file);
+        fwrite(final_output, sizeof(int8_t), 2*2*2*nchan, out_file);
 
         // progressbar(i, num_blocks);
 
@@ -233,12 +233,13 @@ int main(int argc, char* argv[]){
     free(in_stream_pol1);
     free(out_stream_pol1);
     free(guppi_header_data);
-    // free(in_stream_pol2);
-    // free(out_stream_pol2);
-    // free(final_output);
+    free(in_stream_pol2);
+    free(out_stream_pol2);
+    free(final_output);
 
     //Close Files
     fclose(in_file_pol1);
+    fclose(in_file_pol2);
     fclose(guppi_header);
 
     stop = time(NULL);

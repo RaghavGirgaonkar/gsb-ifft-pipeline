@@ -1,7 +1,7 @@
 # gsb-ifft-pipeline
 Pipeline to iFFT on GSB Voltage Beam data
 
-# De-dispresed plot of B0740-28 using the PASV data to make GUPPI RAW files
+# De-dispersed plot of B0740-28 using the PASV data to make GUPPI RAW files
 
 This is a de-dispersed plot of a 5s grab of the B0740-28 Phased Array Spectral Voltage Data (without the iFFT component)
 

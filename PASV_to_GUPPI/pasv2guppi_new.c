@@ -65,23 +65,23 @@ int main(int argc, char* argv[]){
     }
 
     //Get GUPPI RAW Header file
-    const char * guppi_header_path = "guppi_header_template_B0740.txt";
-    guppi_header_file = fopen(guppi_header_path, "r");
-    if(!guppi_header_file){
-          fprintf(stderr,"Error opening GUPPI HEADER File\n");
-          exit(1);
-      }
+  //  const char * guppi_header_path = "guppi_header_template_B0740.txt";
+   // guppi_header_file = fopen(guppi_header_path, "r");
+    //if(!guppi_header_file){
+      //    fprintf(stderr,"Error opening GUPPI HEADER File\n");
+        //  exit(1);
+      //}
 
     //Get size of GUPPI Header
-    struct stat st;
-    stat(guppi_header_path, &st);
-    size_t header_size = st.st_size;
+    //struct stat st;
+    //stat(guppi_header_path, &st);
+    //size_t header_size = st.st_size;
 
-    printf("Size of GUPPI Header is %zu bytes\n", header_size);
+    //printf("Size of GUPPI Header is %zu bytes\n", header_size);
 
     //Store GUPPI Header in a buffer
-    guppi_header_data = (char*)malloc(header_size);
-    int g = fread(guppi_header_data, sizeof(char), header_size, guppi_header_file);
+   // guppi_header_data = (char*)malloc(header_size);
+    //int g = fread(guppi_header_data, sizeof(char), header_size, guppi_header_file);
 
     //Get Bandwidth in MHz
     bandwidth = atoi(argv[3]);
@@ -107,6 +107,31 @@ int main(int argc, char* argv[]){
         printf("CHAN_BW SED failed\n");
         exit(1);
     }
+
+    //Make Header File
+    systemRet = system("python3 guppi_header/gmrt_raw_toguppi -hf main_header.txt -hfo guppi_header.txt");
+    if(systemRet == -1){
+        printf("Making header file failed\n");
+        exit(1);
+    }
+
+   //Get GUPPI RAW Header file
+   const char * guppi_header_path = "guppi_header.txt";
+   guppi_header_file = fopen(guppi_header_path, "r");
+   if(!guppi_header_file){
+   	fprintf(stderr,"Error opening GUPPI HEADER File\n");
+   	exit(1);
+    }
+
+   //Get size of GUPPI Header
+   struct stat st;
+   stat(guppi_header_path, &st);
+   size_t header_size = st.st_size;
+   printf("Size of GUPPI Header is %zu bytes\n", header_size);
+   //      81 
+   //Store GUPPI Header in a buffer
+   guppi_header_data = (char*)malloc(header_size);
+   int g = fread(guppi_header_data, sizeof(char), header_size, guppi_header_file);
 
 
     //Get num seconds

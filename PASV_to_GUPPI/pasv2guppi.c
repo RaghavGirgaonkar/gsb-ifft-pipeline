@@ -121,12 +121,53 @@ int main(int argc, char* argv[]){
     }
 
     //Setting DIRECTIO to 1
-    // printf("Running {sed -i 's/^DIRECTIO=.*/DIRECTIO=1/' main_header.txt}\n");
-    // systemRet = system("sed -i 's/^DIRECTIO=.*/DIRECTIO=1/' main_header.txt");
-    // if(systemRet == -1){
-    //     printf("DIRECTIO SED failed\n");
-    //     exit(1);
-    // }
+    printf("Running {sed -i 's/^DIRECTIO=.*/DIRECTIO=1/' main_header.txt}\n");
+    systemRet = system("sed -i 's/^DIRECTIO=.*/DIRECTIO=1/' main_header.txt");
+    if(systemRet == -1){
+        printf("DIRECTIO SED failed\n");
+        exit(1);
+    }
+
+
+    //Get num seconds
+    num_seconds = atoi(argv[5]);
+    printf("Number of seconds to process = %d\n", num_seconds);
+
+
+    //Get size of Input File
+    // stat(argv[1], &st);
+    // size_t file_size = st.st_size;
+
+    //Get total number of blocks
+    long int num_blocks;
+    long double sampling_rate = (long double)(1/((long double) 2*bandwidth));
+    sampling_rate *= (long double) 0.000001;
+    long double beam_sampling_rate = (long double) sampling_rate*4096;
+    num_blocks = (long int)(num_seconds/beam_sampling_rate);
+
+    printf("The beam sampling rate is %.10Lf\n", beam_sampling_rate);
+    snprintf(command, sizeof(command), "sed -i 's/^TBIN=.*/TBIN=%.8Lf/' main_header.txt", beam_sampling_rate);
+    printf("Updating TBIN with {%s}\n", command);
+    systemRet = system(command);
+    if(systemRet == -1){
+        printf("TBIN Sed failed\n");
+        exit(1);
+    }
+
+    printf("Total number of blocks to process = %ld\n", num_blocks);
+
+    int num_BLOCS = (int) (num_blocks/samples_per_frame);
+
+    printf("Actual Number of Headers/BLOCKS that will be written is = %d and the time length of file will be = %Lf seconds\n", num_BLOCS, (long double)(num_BLOCS*samples_per_frame*beam_sampling_rate));
+
+    //Updating SCANLEN in Header File
+    snprintf(command, sizeof(command), "sed -i 's/^SCANLEN=.*/SCANLEN=%.10Lf/' main_header.txt", (long double)(num_BLOCS*samples_per_frame*beam_sampling_rate));
+    printf("Updating SCANLEN with {%s}\n", command);
+    systemRet = system(command);
+    if(systemRet == -1){
+        printf("SCANLEN SED failed\n");
+        exit(1);
+    }
 
     //Make Header File
     systemRet = system("gmrt_raw_toguppi -hf main_header.txt -hfo guppi_header.txt");
@@ -160,50 +201,6 @@ int main(int argc, char* argv[]){
    for(int l = 0; l < padding; l++){
             padding_byte[l] = 'p';
     }
-
-
-
-    //Get num seconds
-    num_seconds = atoi(argv[5]);
-    printf("Number of seconds to process = %d\n", num_seconds);
-
-
-    //Get size of Input File
-    stat(argv[1], &st);
-    size_t file_size = st.st_size;
-
-    //Get total number of blocks
-    long int num_blocks;
-    long double sampling_rate = (long double)(1/((long double) 2*bandwidth));
-    sampling_rate *= (long double) 0.000001;
-    long double beam_sampling_rate = (long double) sampling_rate*4096;
-    num_blocks = (long int)(num_seconds/beam_sampling_rate);
-
-    printf("The beam sampling rate is %.10Lf\n", beam_sampling_rate);
-    snprintf(command, sizeof(command), "sed -i 's/^TBIN=.*/TBIN=%.8Lf/' main_header.txt", beam_sampling_rate);
-    printf("Updating TBIN with {%s}\n", command);
-    systemRet = system(command);
-    if(systemRet == -1){
-        printf("TBIN Sed failed\n");
-        exit(1);
-    }
-
-    printf("Total number of blocks to process = %ld\n", num_blocks);
-
-    int num_BLOCS = (int) (num_blocks/samples_per_frame);
-
-    printf("Actual Number of Headers/BLOCKS that will be written is = %d and the time length of file will be = %Lf seconds\n", num_BLOCS, (long double)(num_BLOCS*samples_per_frame*beam_sampling_rate));
-
-    //Updating SCANLEN in Header File
-    snprintf(command, sizeof(command), "sed -i 's/^SCANLEN=.*/SCANLEN=%.10Lf/' main_header.txt", (long double)(num_BLOCS*samples_per_frame*beam_sampling_rate));
-    printf("Updating SCANLEN with {%s}\n", command);
-    systemRet = system(command);
-    if(systemRet == -1){
-        printf("SCANLEN SED failed\n");
-        exit(1);
-    }
-
-    // printf("Size of file is %zu bytes...number of FFT Blocks (total number of samples) is %ld\n", num_blocks*2*NCHAN, num_blocks);
 
     
     // printf("Making BLOCK...\n");

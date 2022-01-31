@@ -37,16 +37,17 @@ int main(int argc, char* argv[]){
 
     time_t start, stop;
 
-    if(argc < 4)
-    { fprintf(stderr, "USAGE: %s <Input File Pol1> <Output File> <Bandwidth of Observation in MHz>\n", argv[0]);
+    if(argc < 5)
+    { fprintf(stderr, "USAGE: %s <Input File Pol1> <Output File> <Bandwidth of Observation in MHz> <Num Seconds>\n", argv[0]);
       return(-1);
     }
 
     FILE *pol1_file, *guppi_header_file, *out_file;
-    int samples_per_frame = 4096;
-    long int BLOCSIZE = NCHAN*2*samples_per_frame; // About 50 MiB per BLOCK
+    int samples_per_frame = 32768;
+    long int BLOCSIZE = NCHAN*2*samples_per_frame; // About 134 MiB per BLOCK
     char* guppi_header_data;
     int bandwidth;
+    int num_seconds;
     int read_file;
 
     int8_t *pol1_data, *spectrum;
@@ -64,49 +65,131 @@ int main(int argc, char* argv[]){
     }
 
     //Get GUPPI RAW Header file
-    const char * guppi_header_path = "guppi_header_template_B0740.txt";
-    guppi_header_file = fopen(guppi_header_path, "r");
-    if(!guppi_header_file){
-          fprintf(stderr,"Error opening GUPPI HEADER File\n");
-          exit(1);
-      }
+  //  const char * guppi_header_path = "guppi_header_template_B0740.txt";
+   // guppi_header_file = fopen(guppi_header_path, "r");
+    //if(!guppi_header_file){
+      //    fprintf(stderr,"Error opening GUPPI HEADER File\n");
+        //  exit(1);
+      //}
 
     //Get size of GUPPI Header
-    struct stat st;
-    stat(guppi_header_path, &st);
-    size_t header_size = st.st_size;
+    //struct stat st;
+    //stat(guppi_header_path, &st);
+    //size_t header_size = st.st_size;
 
-    printf("Size of GUPPI Header is %zu bytes\n", header_size);
+    //printf("Size of GUPPI Header is %zu bytes\n", header_size);
 
     //Store GUPPI Header in a buffer
-    guppi_header_data = (char*)malloc(header_size);
-    int g = fread(guppi_header_data, sizeof(char), header_size, guppi_header_file);
+   // guppi_header_data = (char*)malloc(header_size);
+    //int g = fread(guppi_header_data, sizeof(char), header_size, guppi_header_file);
 
     //Get Bandwidth in MHz
     bandwidth = atoi(argv[3]);
     printf("Bandwidth = %d\n", bandwidth);
 
+    //Setting OBS_BW and CHAN_BW in header_template file
+
+    //OBS_BW
+    char command[128];
+    snprintf(command, sizeof(command), "sed -i 's/^OBSBW=.*/OBSBW=%.1f/' main_header.txt", (double) bandwidth);
+    printf("Running {%s}\n", command);
+    int systemRet = system(command);
+    if(systemRet == -1){
+        printf("OBSBW SED failed\n");
+        exit(1);
+    }
+
+    //CHAN_BW
+    snprintf(command, sizeof(command), "sed -i 's/^CHAN_BW=.*/CHAN_BW=%.11Lf/' main_header.txt", ((long double)bandwidth/(long double)NCHAN));
+    printf("Running {%s}\n", command);
+    systemRet = system(command);
+    if(systemRet == -1){
+        printf("CHAN_BW SED failed\n");
+        exit(1);
+    }
+
+    //Setting DIRECTIO to 1
+    // printf("Running {sed -i 's/^DIRECTIO=.*/DIRECTIO=1/' main_header.txt}\n");
+    // systemRet = system("sed -i 's/^DIRECTIO=.*/DIRECTIO=1/' main_header.txt");
+    // if(systemRet == -1){
+    //     printf("DIRECTIO SED failed\n");
+    //     exit(1);
+    // }
+
+    //Make Header File
+    systemRet = system("gmrt_raw_toguppi -hf main_header.txt -hfo guppi_header.txt");
+    if(systemRet == -1){
+        printf("Making header file failed\n");
+        exit(1);
+    }
+
+   //Get GUPPI RAW Header file
+   const char * guppi_header_path = "guppi_header.txt";
+   guppi_header_file = fopen(guppi_header_path, "r");
+   if(!guppi_header_file){
+   	fprintf(stderr,"Error opening GUPPI HEADER File\n");
+   	exit(1);
+    }
+
+   //Get size of GUPPI Header
+   struct stat st;
+   stat(guppi_header_path, &st);
+   size_t header_size = st.st_size;
+   printf("Size of GUPPI Header is %zu bytes\n", header_size);
+   //      81 
+   //Store GUPPI Header in a buffer
+   guppi_header_data = (char*)malloc(header_size);
+   int g = fread(guppi_header_data, sizeof(char), header_size, guppi_header_file);
+
+    //Calculating the number of bytes to pad
+   int padding = 512 - (int) (header_size % 512);
+   printf("Number of bytes to pad is = %d\n", padding);
+   char* padding_byte = (char *)malloc(padding);
+   for(int l = 0; l < padding; l++){
+            padding_byte[l] = 'p';
+    }
+
+
+
+    //Get num seconds
+    num_seconds = atoi(argv[4]);
+    printf("Number of seconds to process = %d\n", num_seconds);
+
+
     //Get size of Input File
     stat(argv[1], &st);
     size_t file_size = st.st_size;
 
-    long int num_blocks = 65536;
+    //Get total number of blocks
+    long int num_blocks;
+    long double sampling_rate = (long double)(1/((long double) 2*bandwidth));
+    sampling_rate *= (long double) 0.000001;
+    long double beam_sampling_rate = (long double) sampling_rate*4096;
+    num_blocks = (long int)(num_seconds/beam_sampling_rate);
 
-    printf("Size of file is %zu bytes...number of FFT Blocks (total number of samples) is %ld\n", num_blocks*2*NCHAN, num_blocks);
+    printf("Total number of blocks to process = %ld\n", num_blocks);
 
-    int i = 0;
-    printf("Making BLOCK...\n");
+    int num_BLOCS = (int) (num_blocks/samples_per_frame);
+
+    printf("Actual Number of Headers/BLOCKS that will be written is = %d and the time length of file will be = %Lf seconds\n", num_BLOCS, (long double)(num_BLOCS*samples_per_frame*beam_sampling_rate));
+
+    // printf("Size of file is %zu bytes...number of FFT Blocks (total number of samples) is %ld\n", num_blocks*2*NCHAN, num_blocks);
+
+    
+    // printf("Making BLOCK...\n");
     int8_t **BLOCK = (int8_t**)malloc(NCHAN*sizeof(int8_t*));
     for(int i = 0; i < NCHAN; i++){
         BLOCK[i] = (int8_t*)malloc(2*samples_per_frame*sizeof(int8_t));
     }
-    printf("Done\n");
+    // printf("Done\n");
     pol1_data = (int8_t*)calloc(2*NCHAN, sizeof(int8_t));
     spectrum = (int8_t*)calloc(2*NCHAN, sizeof(int8_t));
-    printf("Size of output file will be %ld bytes or %ld Megabytes\n", (long int) (num_blocks/samples_per_frame)*(BLOCSIZE + header_size),(long int) (((num_blocks/samples_per_frame)*(BLOCSIZE + header_size))/(1000000)));
+    printf("Size of output file will be %ld bytes or %ld Megabytes\n", (long int) (num_BLOCS)*(BLOCSIZE + (header_size+padding)),(long int) (((num_BLOCS)*(BLOCSIZE + (header_size+padding)))/(1000000)));
     start = time(NULL);
+
+    int i = 0;
     //Write GUPPI File
-    while(i < (int) (num_blocks/samples_per_frame)){
+    while(i < num_BLOCS){
 
         printf("I = %d\n", i);
 
@@ -127,6 +210,10 @@ int main(int argc, char* argv[]){
 
         //Write GUPPI Header
         fwrite(guppi_header_data, sizeof(char), header_size, out_file);
+
+        //Padding
+        fwrite(padding_byte, sizeof(char), padding, out_file);
+
         //Write BLOCK
         // fwrite(BLOCK, 2*samples_per_frame*sizeof(int8_t), NCHAN, out_file);
         for(int l = 0; l < NCHAN; l++){

@@ -38,7 +38,7 @@ int main(int argc, char* argv[]){
     time_t start, stop;
 
     if(argc < 5)
-    { fprintf(stderr, "USAGE: %s <Input File Pol1> <Output File> <Bandwidth of Observation in MHz> <Num Seconds>\n", argv[0]);
+    { fprintf(stderr, "USAGE: %s <Input File Pol1> <Output File> <Bandwidth of Observation in MHz> <Start Frequency in MHz> <Num Seconds>\n", argv[0]);
       return(-1);
     }
 
@@ -87,12 +87,15 @@ int main(int argc, char* argv[]){
     bandwidth = atoi(argv[3]);
     printf("Bandwidth = %d\n", bandwidth);
 
-    //Setting OBS_BW and CHAN_BW in header_template file
+    int start_freq  = atoi(argv[4]);
+    printf("Starting Frequency is = %d\n", start_freq);
+
+    //Setting OBS_BW, OBSFREQ and CHAN_BW in header_template file
 
     //OBS_BW
     char command[128];
     snprintf(command, sizeof(command), "sed -i 's/^OBSBW=.*/OBSBW=%.1f/' main_header.txt", (double) bandwidth);
-    printf("Running {%s}\n", command);
+    printf("Updating Observation Bandwidth with {%s}\n", command);
     int systemRet = system(command);
     if(systemRet == -1){
         printf("OBSBW SED failed\n");
@@ -101,10 +104,19 @@ int main(int argc, char* argv[]){
 
     //CHAN_BW
     snprintf(command, sizeof(command), "sed -i 's/^CHAN_BW=.*/CHAN_BW=%.11Lf/' main_header.txt", ((long double)bandwidth/(long double)NCHAN));
-    printf("Running {%s}\n", command);
+    printf("Updating Channel Bandwidth with {%s}\n", command);
     systemRet = system(command);
     if(systemRet == -1){
         printf("CHAN_BW SED failed\n");
+        exit(1);
+    }
+
+    //OBSFREQ
+    snprintf(command, sizeof(command), "sed -i 's/^OBSFREQ=.*/OBSFREQ=%.2f/' main_header.txt", (double) (start_freq + (double)(bandwidth/2)));
+    printf("Updating OBSFREQ with {%s}\n", command);
+    systemRet = system(command);
+    if(systemRet == -1){
+        printf("OBSFREQ SED failed\n");
         exit(1);
     }
 
@@ -152,7 +164,7 @@ int main(int argc, char* argv[]){
 
 
     //Get num seconds
-    num_seconds = atoi(argv[4]);
+    num_seconds = atoi(argv[5]);
     printf("Number of seconds to process = %d\n", num_seconds);
 
 
@@ -167,11 +179,29 @@ int main(int argc, char* argv[]){
     long double beam_sampling_rate = (long double) sampling_rate*4096;
     num_blocks = (long int)(num_seconds/beam_sampling_rate);
 
+    printf("The beam sampling rate is %.10Lf\n", beam_sampling_rate);
+    snprintf(command, sizeof(command), "sed -i 's/^TBIN=.*/TBIN=%.8Lf/' main_header.txt", beam_sampling_rate);
+    printf("Updating TBIN with {%s}\n", command);
+    systemRet = system(command);
+    if(systemRet == -1){
+        printf("TBIN Sed failed\n");
+        exit(1);
+    }
+
     printf("Total number of blocks to process = %ld\n", num_blocks);
 
     int num_BLOCS = (int) (num_blocks/samples_per_frame);
 
     printf("Actual Number of Headers/BLOCKS that will be written is = %d and the time length of file will be = %Lf seconds\n", num_BLOCS, (long double)(num_BLOCS*samples_per_frame*beam_sampling_rate));
+
+    //Updating SCANLEN in Header File
+    snprintf(command, sizeof(command), "sed -i 's/^SCANLEN=.*/SCANLEN=%.10Lf/' main_header.txt", (long double)(num_BLOCS*samples_per_frame*beam_sampling_rate));
+    printf("Updating SCANLEN with {%s}\n", command);
+    systemRet = system(command);
+    if(systemRet == -1){
+        printf("SCANLEN SED failed\n");
+        exit(1);
+    }
 
     // printf("Size of file is %zu bytes...number of FFT Blocks (total number of samples) is %ld\n", num_blocks*2*NCHAN, num_blocks);
 

@@ -13,3 +13,6 @@ pasv2guppi.o: guppi_header.o pasv2guppi.c
 
 guppi_header.o: guppi_header.h guppi_header.c 
 	$(CC) -c $(CFLAGS) $(guppi).c 
+
+clean:
+	rm *.o

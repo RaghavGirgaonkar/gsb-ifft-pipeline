@@ -62,7 +62,10 @@ int make_guppi_header(){
         }
         
         //Check if header_param is an integer, string or a float
-        if(!isdigit(header_param[0])) status = 's';
+        if(!isdigit(header_param[0])){
+            if(strstr(line, "OBSBW") != NULL || strstr(line, "CHAN_BW") != NULL) status = 'f';
+            else status = 's';
+	    }
         else{
             if(strchr(header_param,'.') && !strchr(header_param,':')) status = 'f';
             else if(strchr(header_param,'/')) status = 's';
@@ -200,6 +203,8 @@ int make_guppi_header(){
 
     fwrite(padding_byte, sizeof(char), padding, o);
 
+    printf("*****Done writing HEADER*****\n");
+
 
     fclose(f);
     fclose(o);
@@ -207,4 +212,58 @@ int make_guppi_header(){
 
 
     return 1;
+}
+
+int update_header_param(char* param, char* param_type, long double param_value){
+
+    //If Header parameter to be changed is a string then the value of the string is passed into the param_type variable
+    //param_value in that case is ignored
+    if(!strcmp(param_type, "Lf") || !strcmp(param_type, "f") || !strcmp(param_type, "i")){
+        printf("%s value = %Lf\n", param, param_value);
+    }
+    else{
+        printf("%s = %s\n", param, param_type);
+    }
+    
+    if(!strcmp(param_type, "Lf")){
+        // printf("In here!\n");
+        char command[128];
+        snprintf(command, sizeof(command), "sed -i 's/^%s=.*/%s=%.11Lf/' main_header.txt", param, param, (long double) param_value);
+        printf("Updating %s with {%s}\n", param, command);
+        int systemRet = system(command);
+        if(systemRet == -1){
+            printf("%s SED failed\n", param);
+            exit(1);
+        }
+    }
+    else if(!strcmp(param_type, "f")){
+        char command[128];
+        snprintf(command, sizeof(command), "sed -i 's/^%s=.*/%s=%.2f/' main_header.txt", param, param, (double) param_value);
+        printf("Updating %s with {%s}\n", param, command);
+        int systemRet = system(command);
+        if(systemRet == -1){
+            printf("%s SED failed\n", param);
+            exit(1);
+        }
+    }
+    else if(!strcmp(param_type, "i")){
+        char command[128];
+        snprintf(command, sizeof(command), "sed -i 's/^%s=.*/%s=%d/' main_header.txt", param, param, (int) param_value);
+        printf("Updating %s with {%s}\n", param, command);
+        int systemRet = system(command);
+        if(systemRet == -1){
+            printf("%s SED failed\n", param);
+            exit(1);
+        }
+    }
+    else{
+        char command[128];
+        snprintf(command, sizeof(command), "sed -i 's/^%s=.*/%s=%s/' main_header.txt", param, param, param_type);
+        printf("Updating %s with {%s}\n", param, command);
+        int systemRet = system(command);
+        if(systemRet == -1){
+            printf("%s SED failed\n", param);
+            exit(1);
+        }
+    }
 }

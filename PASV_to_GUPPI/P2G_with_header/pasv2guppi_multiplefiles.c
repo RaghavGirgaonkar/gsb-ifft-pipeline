@@ -73,10 +73,7 @@ int main(int argc, char* argv[]){
 
     FILE *pol1_file, *pol2_file, *guppi_header_file, *out_file;
     int samples_per_frame = 32768;
-    int max_BLOCS_per_file = 3;
-    long int BLOCSIZE = NCHAN*2*samples_per_frame; // About 134 MiB per BLOCK
-    char* guppi_header_data;
-    int bandwidth;
+    int max_BLOCS_per_file = 128;
     int num_seconds;
     int read_file;
     char output_file[100];

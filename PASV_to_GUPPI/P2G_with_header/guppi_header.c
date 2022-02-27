@@ -40,6 +40,7 @@ int make_guppi_header(){
     int num = 0;
     while(fgets(line, N, f)){
         
+        // printf("Line  %s\n", line);
         
         if(line[0]==' ') continue;
         strtok_r(line,"=",&header_param);
@@ -130,14 +131,16 @@ int make_guppi_header(){
                     header[count] = '\'';
                     count += 1;
                 }
-                else header[count] = '\'';
-                count += 1;
+                else {
+                    header[count] = '\'';
+                    count += 1;
+                }
 
                 while(count < N){
                     header[count] = ' ';
                     count += 1;
                 }
-
+                // printf("%s\n", header);
                 //Remove \x00 from header
                 for(int i = 0 ; i < N; i++){
                     if(header[i] == '\0') header[i]=' ';
@@ -179,7 +182,9 @@ int make_guppi_header(){
         printf("%s\n", header);
         fwrite(header, sizeof(char), N, o);
         num += N;
+        free(header);
     }
+    
 
     //Write END at the end
     char *header = (char*)malloc(N);
@@ -209,6 +214,8 @@ int make_guppi_header(){
     fclose(f);
     fclose(o);
     free(header);
+    free(padding_byte);
+    // free(header_param);
 
 
     return 1;

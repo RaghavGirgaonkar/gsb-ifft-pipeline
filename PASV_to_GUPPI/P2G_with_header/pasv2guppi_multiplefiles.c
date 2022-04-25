@@ -130,14 +130,6 @@ int main(int argc, char* argv[]){
     //Setting DIRECTIO to 1
     update_header_param("DIRECTIO","i",(long double) 1);
 
-    //(TEST) Update Observer name
-    update_header_param("OBSERVER", "Arun M", 0);
-
-    //(TEST) Update BANKNAM name
-    update_header_param("BANKNAM", "GWBH8", 0);
-
-    //Updating NPOL in Header File
-    update_header_param("NPOL", "i", (long double)4);
 
     //Get num seconds
     num_seconds = atoi(argv[6]);

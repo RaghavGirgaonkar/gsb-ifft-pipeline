@@ -1,7 +1,7 @@
 CC=gcc
 
 CFLAGS= -lm -L/usr/local/lib 
-main=pasv2guppi
+main=pasv2guppi_multiplefiles
 guppi=guppi_header
 
 

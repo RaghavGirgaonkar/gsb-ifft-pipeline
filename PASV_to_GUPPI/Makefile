@@ -1,11 +1,18 @@
 CC=gcc
-CUDA_PATH=/usr/local/cuda
-NVCC=$(CUDA_PATH)/bin/nvcc
-LIBDIRS=/usr/local/cuda/lib64/ 
-CUDAFLAGS= -l :libcufft.so -std=c++11
-CFLAGS= -O3 -lm -L/usr/local/lib -lfftw3
-File=pasv2guppi
 
-all:
-	$(CC) -o $(File) $(File).c $(CFLAGS)
+CFLAGS= -lm -L/usr/local/lib 
+main=pasv2guppi_multiplefiles
+guppi=guppi_header
 
+
+p2g: guppi_header.o pasv2guppi.o 
+	$(CC) -o $(main) $(main).o $(guppi).o $(CFLAGS)
+
+pasv2guppi.o: guppi_header.o pasv2guppi.c 
+	$(CC) -c $(CFLAGS) $(main).c
+
+guppi_header.o: guppi_header.h guppi_header.c 
+	$(CC) -c $(CFLAGS) $(guppi).c 
+
+clean:
+	rm *.o

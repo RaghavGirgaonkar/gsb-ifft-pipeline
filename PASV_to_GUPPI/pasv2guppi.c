@@ -12,6 +12,8 @@
 #include <fftw3.h>
 #include <stdint.h>
 #include <sys/stat.h>
+#include "guppi_header.h"
+#include <omp.h>
 
 
 #define LINUX
@@ -22,12 +24,17 @@
 
 void get_spectrum(int8_t *pol1_data, int8_t *spectrum){
 
+    // omp_set_num_threads(8);
+
     int8_t Nby2 = pol1_data[1];
     int8_t Nby2_imag = 0;
 
+    // #pragma omp parallel
     for(int i = 0; i < NCHAN*2 - 2; i++){
         spectrum[i] = pol1_data[i+2];
     }
+
+
     spectrum[NCHAN*2 - 2] = Nby2;
     spectrum[NCHAN*2 - 1] = Nby2_imag;
 
@@ -37,20 +44,24 @@ int main(int argc, char* argv[]){
 
     time_t start, stop;
 
-    if(argc < 5)
-    { fprintf(stderr, "USAGE: %s <Input File Pol1> <Output File> <Bandwidth of Observation in MHz> <Start Frequency in MHz> <Num Seconds>\n", argv[0]);
+    // omp_set_num_threads(8);
+
+    if(argc < 7)
+    { fprintf(stderr, "USAGE: %s <Input File Pol1> <Input File Pol2> <Output File Stem> <Bandwidth of Observation in MHz> <Start Frequency in MHz> <Num Seconds>\n", argv[0]);
       return(-1);
     }
 
-    FILE *pol1_file, *guppi_header_file, *out_file;
+    FILE *pol1_file, *pol2_file, *guppi_header_file, *out_file;
     int samples_per_frame = 32768;
     long int BLOCSIZE = NCHAN*2*samples_per_frame; // About 134 MiB per BLOCK
     char* guppi_header_data;
     int bandwidth;
     int num_seconds;
     int read_file;
+    char output_file[100];
+    char extension[50] = ".0000.raw";
 
-    int8_t *pol1_data, *spectrum;
+    int8_t *pol1_data, *pol2_data, *pol1_spectrum, *pol2_spectrum;
 
     //Open files
     pol1_file = fopen(argv[1], "r");
@@ -58,85 +69,64 @@ int main(int argc, char* argv[]){
         fprintf(stderr,"Error opening Pol1 Input File\n");
         exit(1);
     }
-    out_file = fopen(argv[2], "w");
+
+    pol2_file = fopen(argv[2], "r");
+    if(!pol2_file){
+        fprintf(stderr,"Error opening Pol1 Input File\n");
+        exit(1);
+    }
+
+    //Output files
+    strcpy(output_file, argv[3]);
+    // printf("Output File stem = %s \t %s\n", argv[2], output_file);
+    // printf("extension = %s\n", extension);
+    strcat(output_file, ".0000.raw");
+    
+    out_file = fopen(output_file, "w");
     if(!out_file){
         fprintf(stderr,"Error opening output file\n");
         exit(1);
     }
-
-    //Get GUPPI RAW Header file
-  //  const char * guppi_header_path = "guppi_header_template_B0740.txt";
-   // guppi_header_file = fopen(guppi_header_path, "r");
-    //if(!guppi_header_file){
-      //    fprintf(stderr,"Error opening GUPPI HEADER File\n");
-        //  exit(1);
-      //}
-
-    //Get size of GUPPI Header
-    //struct stat st;
-    //stat(guppi_header_path, &st);
-    //size_t header_size = st.st_size;
-
-    //printf("Size of GUPPI Header is %zu bytes\n", header_size);
-
-    //Store GUPPI Header in a buffer
-   // guppi_header_data = (char*)malloc(header_size);
-    //int g = fread(guppi_header_data, sizeof(char), header_size, guppi_header_file);
+    else{
+        printf("Created Output File: %s\n", output_file);
+    }
 
     //Get Bandwidth in MHz
-    bandwidth = atoi(argv[3]);
+    bandwidth = atoi(argv[4]);
     printf("Bandwidth = %d\n", bandwidth);
 
-    int start_freq  = atoi(argv[4]);
+    int start_freq  = atoi(argv[5]);
     printf("Starting Frequency is = %d\n", start_freq);
 
     //Setting OBS_BW, OBSFREQ and CHAN_BW in header_template file
 
     //OBS_BW
-    char command[128];
-    snprintf(command, sizeof(command), "sed -i 's/^OBSBW=.*/OBSBW=%.1f/' main_header.txt", (double) bandwidth);
-    printf("Updating Observation Bandwidth with {%s}\n", command);
-    int systemRet = system(command);
-    if(systemRet == -1){
-        printf("OBSBW SED failed\n");
-        exit(1);
-    }
+    update_header_param("OBSBW", "f", (long double) bandwidth);
 
     //CHAN_BW
-    snprintf(command, sizeof(command), "sed -i 's/^CHAN_BW=.*/CHAN_BW=%.11Lf/' main_header.txt", ((long double)bandwidth/(long double)NCHAN));
-    printf("Updating Channel Bandwidth with {%s}\n", command);
-    systemRet = system(command);
-    if(systemRet == -1){
-        printf("CHAN_BW SED failed\n");
-        exit(1);
-    }
+    update_header_param("CHAN_BW", "Lf", ((long double)bandwidth/(long double)NCHAN));
 
     //OBSFREQ
-    snprintf(command, sizeof(command), "sed -i 's/^OBSFREQ=.*/OBSFREQ=%.2f/' main_header.txt", (double) (start_freq + (double)(bandwidth/2)));
-    printf("Updating OBSFREQ with {%s}\n", command);
-    systemRet = system(command);
-    if(systemRet == -1){
-        printf("OBSFREQ SED failed\n");
-        exit(1);
-    }
+    update_header_param("OBSFREQ", "f", (long double) ((long double)start_freq + (long double)((long double)bandwidth/((long double)2))));
+
+
 
     //Setting DIRECTIO to 1
-    printf("Running {sed -i 's/^DIRECTIO=.*/DIRECTIO=1/' main_header.txt}\n");
-    systemRet = system("sed -i 's/^DIRECTIO=.*/DIRECTIO=1/' main_header.txt");
-    if(systemRet == -1){
-        printf("DIRECTIO SED failed\n");
-        exit(1);
-    }
+    update_header_param("DIRECTIO","i",(long double) 1);
 
+    //(TEST) Update Observer name
+    update_header_param("OBSERVER", "Arun M", 0);
+
+    //(TEST) Update BANKNAM name
+    update_header_param("BANKNAM", "GWBH8", 0);
+
+    //Updating NPOL in Header File
+    update_header_param("NPOL", "i", (long double)4);
 
     //Get num seconds
-    num_seconds = atoi(argv[5]);
+    num_seconds = atoi(argv[6]);
     printf("Number of seconds to process = %d\n", num_seconds);
 
-
-    //Get size of Input File
-    // stat(argv[1], &st);
-    // size_t file_size = st.st_size;
 
     //Get total number of blocks
     long int num_blocks;
@@ -146,33 +136,22 @@ int main(int argc, char* argv[]){
     num_blocks = (long int)(num_seconds/beam_sampling_rate);
 
     printf("The beam sampling rate is %.10Lf\n", beam_sampling_rate);
-    snprintf(command, sizeof(command), "sed -i 's/^TBIN=.*/TBIN=%.8Lf/' main_header.txt", beam_sampling_rate);
-    printf("Updating TBIN with {%s}\n", command);
-    systemRet = system(command);
-    if(systemRet == -1){
-        printf("TBIN Sed failed\n");
-        exit(1);
-    }
+  
+    update_header_param("TBIN", "Lf", beam_sampling_rate);
 
-    printf("Total number of blocks to process = %ld\n", num_blocks);
+    printf("Total number of blocks to process per polarisation file = %ld\n", num_blocks);
 
-    int num_BLOCS = (int) (num_blocks/samples_per_frame);
+    int num_BLOCS = (int) 2*(num_blocks/samples_per_frame);
 
-    printf("Actual Number of Headers/BLOCKS that will be written is = %d and the time length of file will be = %Lf seconds\n", num_BLOCS, (long double)(num_BLOCS*samples_per_frame*beam_sampling_rate));
+    printf("Actual Number of Headers that will be written is = %d and the time length of file will be = %Lf seconds\n", num_BLOCS, (long double)(num_BLOCS*(samples_per_frame/2)*beam_sampling_rate));
 
     //Updating SCANLEN in Header File
-    snprintf(command, sizeof(command), "sed -i 's/^SCANLEN=.*/SCANLEN=%.10Lf/' main_header.txt", (long double)(num_BLOCS*samples_per_frame*beam_sampling_rate));
-    printf("Updating SCANLEN with {%s}\n", command);
-    systemRet = system(command);
-    if(systemRet == -1){
-        printf("SCANLEN SED failed\n");
-        exit(1);
-    }
+    update_header_param("SCANLEN", "Lf", (long double)(num_BLOCS*(samples_per_frame/2)*beam_sampling_rate));
 
     //Make Header File
-    systemRet = system("gmrt_raw_toguppi -hf main_header.txt -hfo guppi_header.txt");
-    if(systemRet == -1){
-        printf("Making header file failed\n");
+    int gh = make_guppi_header();
+    if(!gh){
+        printf("Making Guppi Header File failed\n");
         exit(1);
     }
 
@@ -189,18 +168,10 @@ int main(int argc, char* argv[]){
    stat(guppi_header_path, &st);
    size_t header_size = st.st_size;
    printf("Size of GUPPI Header is %zu bytes\n", header_size);
-   //      81 
+   
    //Store GUPPI Header in a buffer
    guppi_header_data = (char*)malloc(header_size);
    int g = fread(guppi_header_data, sizeof(char), header_size, guppi_header_file);
-
-    //Calculating the number of bytes to pad
-   int padding = 512 - (int) (header_size % 512);
-   printf("Number of bytes to pad is = %d\n", padding);
-   char* padding_byte = (char *)malloc(padding);
-   for(int l = 0; l < padding; l++){
-            padding_byte[l] = 'p';
-    }
 
     
     // printf("Making BLOCK...\n");
@@ -210,36 +181,39 @@ int main(int argc, char* argv[]){
     }
     // printf("Done\n");
     pol1_data = (int8_t*)calloc(2*NCHAN, sizeof(int8_t));
-    spectrum = (int8_t*)calloc(2*NCHAN, sizeof(int8_t));
-    printf("Size of output file will be %ld bytes or %ld Megabytes\n", (long int) (num_BLOCS)*(BLOCSIZE + (header_size+padding)),(long int) (((num_BLOCS)*(BLOCSIZE + (header_size+padding)))/(1000000)));
+    pol2_data = (int8_t*)calloc(2*NCHAN, sizeof(int8_t));
+    pol1_spectrum = (int8_t*)calloc(2*NCHAN, sizeof(int8_t));
+    pol2_spectrum = (int8_t*)calloc(2*NCHAN, sizeof(int8_t));
+    printf("Size of output file will be %ld bytes or %ld Megabytes\n", (long int) (num_BLOCS)*(BLOCSIZE + (header_size)),(long int) (((num_BLOCS)*(BLOCSIZE + (header_size)))/(1000000)));
     start = time(NULL);
 
     int i = 0;
-    //Write GUPPI File
+    //Write GUPPI RAW File
     while(i < num_BLOCS){
 
-        printf("I = %d\n", i);
+        //printf("I = %d\n", i);
 
-        for(int j = 0; j < samples_per_frame; j++){
+        for(int j = 0; j < (int) samples_per_frame/2; j++){
 
             read_file = fread(pol1_data, sizeof(int8_t), 2*NCHAN, pol1_file);
-            get_spectrum(pol1_data, spectrum);
+            read_file = fread(pol2_data, sizeof(int8_t), 2*NCHAN, pol2_file);
+            get_spectrum(pol1_data, pol1_spectrum);
+            get_spectrum(pol2_data, pol2_spectrum);
 
             //Populate BLOCK
             for(int k = 0; k < NCHAN; k++){
 
-                BLOCK[k][2*j] = spectrum[2*k];
-                BLOCK[k][2*j+1] = spectrum[2*k+1];
-                // printf("Populating BLOCK[%d][%d] and BLOCK[%d][%d]\n", k, 2*j, k, 2*j+ 1);
+                BLOCK[k][4*j] = pol1_spectrum[2*k];
+                BLOCK[k][4*j+1] = pol1_spectrum[2*k+1];
+                BLOCK[k][4*j+2] = pol2_spectrum[2*k];
+                BLOCK[k][4*j+3] = pol2_spectrum[2*k+1];
+                
             }
 
         }
 
         //Write GUPPI Header
         fwrite(guppi_header_data, sizeof(char), header_size, out_file);
-
-        //Padding
-        fwrite(padding_byte, sizeof(char), padding, out_file);
 
         //Write BLOCK
         // fwrite(BLOCK, 2*samples_per_frame*sizeof(int8_t), NCHAN, out_file);
@@ -260,8 +234,11 @@ int main(int argc, char* argv[]){
     free(BLOCK);
     free(guppi_header_data);
     free(pol1_data);
-    free(spectrum);
+    free(pol2_data);
+    free(pol1_spectrum);
+    free(pol2_spectrum);
     fclose(pol1_file);
+    fclose(pol2_file);
     fclose(out_file);
     fclose(guppi_header_file);
     stop = time(NULL);

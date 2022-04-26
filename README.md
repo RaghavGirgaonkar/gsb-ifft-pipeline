@@ -1,5 +1,5 @@
-# gsb-ifft-pipeline
-Pipeline to iFFT on GSB Voltage Beam data
+# pasv2guppi
+Pipeline to convert uGMRT Voltage Beam data in PASV mode to GUPPI Raw format for SETI
 
 # De-dispersed plot of 2 POL, 100 MHz, 550-650 MHz B0329+54 data 
 
